@@ -1,0 +1,138 @@
+/* 
+############################################################################################
+####		Created & Developed by João Gabriel Corrêa da Silva (All Rights Reserved)   ####
+####	    https://www.linkedin.com/in/jo%C3%A3o-gabriel-corr%C3%AAa-da-silva/	        ####
+############################################################################################
+*/
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Gilroy', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #eee;
+    background-color: #333;
+    padding: 0.5em;
+}
+
+header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #333;
+    position: sticky;
+    top: 0;
+    padding: 0.2em 0;
+    box-shadow: 0 2px #0003;
+}
+
+header h1, header h2 {
+    margin: 0.1em 0.2em;    
+    font-size: 0.9em;
+}
+
+header h1 {  
+    font-size: 1.3em;
+}
+
+header h2 {  
+    font-size: 0.9em;
+}
+
+header [role="author"] {
+    margin: 0.1em 0.2em;
+    font-size: 0.7em;
+}
+
+section {
+    padding: 1.4em;
+    justify-content: center;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+section > * {
+    margin: 0.5em;
+}
+
+.input {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #eee;
+    color: #444;
+    padding: 0.5em;
+    border-radius: 0.2em;
+    min-width: 30px;
+    height: 30px;
+    box-sizing: content-box;
+}
+
+.input span {
+    margin: 0 0.3em;
+    font-size: 0.8em;
+}
+
+.input input {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    font-family: 'Gilroy', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    flex: 1;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #eee;
+    color: #444;
+    padding: 0.5em;
+    border-radius: 0.2em;
+    border: none;
+    outline: none;
+    min-width: 30px;
+    height: 30px;
+    box-sizing: content-box;
+    margin: 0 0.1em;
+}
+
+.btn:hover {
+    transition: all cubic-bezier(0.865, -0.600, 0.320, 1.605) 0.3s;
+    transform: scale(1.1);
+    color: #eee;
+    background-color: #444;
+}
+
+.btn:active {
+    transition: all cubic-bezier(0.865, -0.600, 0.320, 1.605) 0.1s;
+    transform: scale(1.5);
+    color: #eee;
+    background-color: #8d8d8d;
+}
+
+.links {
+    position: fixed;
+    top: 5px;
+    right: 5px;
+}
+
+.links a:hover svg {
+    transition: transform cubic-bezier(0.865, -0.600, 0.320, 1.605) 0.3s;
+    transform: scale(1.2);
+}
+
+@keyframes blink {
+    0% {
+        transform: scaleY(1);
+    }
+    5% {
+        transform: scaleY(0);
+    }
+    10% {
+        transform: scaleY(1);
+    }
+}
+
+canvas {
+    border-radius: 5px;
+    background-color: white;
+}
