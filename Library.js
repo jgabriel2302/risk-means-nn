@@ -25,7 +25,7 @@ class Commom {
   }
 }
 
-class KMeans {
+class KMeans2 {
   euclideanDistance(point1, point2) {
     return Commom.euclideanDistance(point1, point2);
   }
@@ -95,6 +95,135 @@ class KMeans {
   }
 }
 
+class KMeans {
+  static normalizeData(data, minValues, maxValues) {  
+    return data.map((point) =>
+      point.map((value, dim) => (value - minValues[dim]) / (maxValues[dim] - minValues[dim]))
+    );
+  }
+
+  static unnormalizeData(data, minValues, maxValues) {
+    return data.map((point) =>
+      point.map((value, dim) => value * (maxValues[dim] - minValues[dim]) + minValues[dim]
+    ));
+  }
+
+  static findOptimalK(data, maxK = 10) {
+    const distortions = [];
+  
+    for (let k = 1; k <= maxK; k++) {
+      const kmeans = new KMeans(data, k);
+      const { centroids, clusters } = kmeans;
+  
+      const distortion = data.reduce((sum, point, index) => {
+        const centroid = centroids[clusters[index]];
+        return sum + Commom.euclideanDistance(point, centroid) ** 2;
+      }, 0);
+  
+      distortions.push(distortion);
+    }
+  
+    return distortions;
+  }
+  
+
+  euclideanDistance(point1, point2) {
+    return Math.sqrt(
+      point1.reduce((sum, value, index) => sum + (value - point2[index]) ** 2, 0)
+    );
+  }
+
+  initializeCentroids(data, k) {
+    const centroids = [];
+    if(data.length === 0) return centroids;
+    centroids.push([...data[Math.floor(Math.random() * data.length)]]);
+    while (centroids.length < k) {
+      const distances = data.map((point) =>
+        Math.min(...centroids.map((centroid) => this.euclideanDistance(point, centroid)))
+      );
+      const totalDistance = distances.reduce((sum, d) => sum + d, 0);
+      const probabilities = distances.map((d) => d / totalDistance);
+      const cumulativeProbabilities = probabilities.reduce(
+        (acc, prob) => [...acc, acc[acc.length - 1] + prob],
+        [0]
+      );
+      const random = Math.random();
+      const chosenIndex = cumulativeProbabilities.findIndex((cumProb) => cumProb > random);
+      centroids.push([...data[chosenIndex]]);
+    }
+    return centroids;
+  }
+
+  assignClusters(data, centroids) {
+    return data.map((point) => {
+      let closestCentroid = 0;
+      let minDistance = Infinity;
+      centroids.forEach((centroid, index) => {
+        const distance = this.euclideanDistance(point, centroid);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestCentroid = index;
+        }
+      });
+      return closestCentroid;
+    });
+  }
+
+  updateCentroids(data, clusters, k) {
+    if(data.length === 0) return []
+    const newCentroids = Array.from({ length: k }, () =>
+      Array(data[0].length).fill(0)
+    );
+    const clusterSizes = Array(k).fill(0);
+
+    data.forEach((point, index) => {
+      const clusterIndex = clusters[index];
+      clusterSizes[clusterIndex]++;
+      point.forEach((value, dim) => {
+        newCentroids[clusterIndex][dim] += value;
+      });
+    });
+
+    newCentroids.forEach((centroid, index) => {
+      if (clusterSizes[index] === 0) {
+        const randomPoint = data[Math.floor(Math.random() * data.length)];
+        centroid.splice(0, centroid.length, ...randomPoint);
+      } else {
+        centroid.forEach((_, dim) => {
+          centroid[dim] /= clusterSizes[index];
+        });
+      }
+    });
+
+    return newCentroids;
+  }
+
+  constructor(data = [], k = 1, maxIterations = 100, tolerance = 1e-9) {
+    let centroids = this.initializeCentroids(data, k);
+    let clusters = [];
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      const newClusters = this.assignClusters(data, centroids);
+      const newCentroids = this.updateCentroids(data, newClusters, k);
+
+      const centroidShift = centroids.reduce((sum, centroid, index) => {
+        const shift = this.euclideanDistance(centroid, newCentroids[index]);
+        return sum + shift;
+      }, 0);
+
+      if (centroidShift < tolerance) break;
+
+      clusters = newClusters;
+      centroids = newCentroids;
+      iterations++;
+    }
+
+    return { clusters, centroids };
+  }
+}
+
+
 class KNN {
   euclideanDistance(point1, point2) {
     return Commom.euclideanDistance(point1, point2);
@@ -128,10 +257,10 @@ class FakeData {
 
 class ClusterChart {
   static defaultOptions = {
-    colors: ["#084c61","#db504a","#e3b505","#4f6d7a","#56a3a6"],
+    colors: ["#1d91b5","#390385","#066b5f", "#064f6b", "#3d5fc4", "#7a5491"],
     padding: 50, // Aumentei o padding para espaço melhor entre eixos e dados
-    width: 500,
-    height: 300,
+    width: 1000,
+    height: 600,
     x: {
       name: "x",
       min: null, // Valores mínimos e máximos podem ser fixados
@@ -161,7 +290,13 @@ class ClusterChart {
 
     this.calculateScale();
 
+    this.hoverCluster = -1;
+    this.hoverPoint = -1;
     this.selectedCluster = -1;
+    this.selectedPoint = -1;
+
+    this.eventListener = [];
+
     this.interact();
   }
 
@@ -186,11 +321,14 @@ class ClusterChart {
     ];
   }
 
-  drawPoint(x, y, r, color) {
+  drawPoint(x, y, r, color, index, hover) {
     this.ctx.beginPath();
     this.ctx.arc(x, y, r, 0, Math.PI * 2);
     this.ctx.fillStyle = color;
     this.ctx.fill();
+    this.ctx.font = "8px Arial";
+    this.ctx.fillStyle = color;
+    if(index && hover) this.ctx.fillText(index+1, x + 5, y - 5);
   }
 
   drawTick(position, axis, label) {
@@ -327,8 +465,12 @@ class ClusterChart {
     this.data.forEach((point, index) => {
       const scaledPoint = this.scalePoint(point);
       const color = this.getColorByCluster(this.clusters[index]);
-      this.drawPoint(scaledPoint[0], scaledPoint[1], 2, color);
-      if(this.selectedCluster === this.clusters[index]){
+      const isHover = this.hoverPoint === index;
+      const isSelected = this.selectedPoint === index;
+      
+      this.drawPoint(scaledPoint[0], scaledPoint[1], isSelected? 4: isHover? 3: 2, color, index, isHover);
+      
+      if(this.hoverCluster === this.clusters[index] || isSelected){
         this.ctx.strokeStyle = color + '55';
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
@@ -338,7 +480,7 @@ class ClusterChart {
       const scaledPoint = this.scalePoint(point);
       const color = this.options.colors[index];
       this.drawPoint(scaledPoint[0], scaledPoint[1], 5, color);
-      if(this.selectedCluster === index){        
+      if(this.hoverCluster === index){        
         this.ctx.strokeStyle = color + '55';
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
@@ -346,36 +488,78 @@ class ClusterChart {
     });
   }
 
+  on(eventName, eventHandler = (eventData)=>{}){
+    this.eventListener.push({
+      eventName,
+      eventHandler
+    });
+  }
+
+  dispatchEvent(eventName, eventData = {}){
+    this.eventListener.forEach((listener) => {
+      if(listener.eventName === eventName && typeof listener.eventHandler === "function"){
+        listener.eventHandler({
+          eventName, ...eventData
+        });
+      }
+    })
+  }
+
   interact(){
     this.canvas.addEventListener('mousemove', (e)=>{
       const rect = this.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-      this.selectedCluster = -1;
+      this.hoverCluster = -1;
+      this.hoverPoint = -1
       for (let index = 0; index < this.data.length; index++) {
         const point = this.data[index];
         const [px, py] = this.scalePoint(point);
         const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
         if(distance < 2.5) {
-          this.selectedCluster = this.clusters[index];
+          this.hoverCluster = this.clusters[index];          
+          this.hoverPoint = index;
           break;
         }
       }
 
-      if(this.selectedCluster === -1) {
+      if(this.hoverCluster === -1) {
         for (let index = 0; index < this.centroids.length; index++) {
           const point = this.centroids[index];
           const [px, py] = this.scalePoint(point);
           const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
           if(distance < 2.5) {
-            this.selectedCluster = index;
+            this.hoverCluster = index;
             break;
           }
         }
       }
-      
+
+      if(this.hoverCluster !== -1) this.dispatchEvent('clusterhover', {clusterIndex: this.hoverCluster});
+      if(this.hoverPoint !== -1) this.dispatchEvent('pointhover', {pointIndex: this.hoverPoint});
+
+      if(this.hoverCluster === -1) this.dispatchEvent('clusterleave', {clusterIndex: null});
+      if(this.hoverPoint === -1) this.dispatchEvent('pointleave', {pointIndex: null});
+
       this.render();
-    })
+    });
+
+    this.canvas.addEventListener('mousedown', (e)=>{
+      this.selectedCluster = this.hoverCluster;
+      if(this.selectedCluster !== -1) this.dispatchEvent('clusterselect', {clusterIndex: this.selectedCluster});
+      this.selectedPoint = this.hoverPoint;
+      if(this.selectedPoint !== -1) this.dispatchEvent('pointselect', {pointIndex: this.selectedPoint});
+
+      if(this.selectedCluster === -1) this.dispatchEvent('clusterunselect', {clusterIndex: null});
+      if(this.selectedPoint === -1) this.dispatchEvent('pointunselect', {pointIndex: null});
+      this.render();
+    });
+
+    // this.canvas.addEventListener('mouseup', (e)=>{
+    //   this.selectedCluster = -1;
+    //   this.selectedPoint = -1;
+    //   this.render();
+    // });
   }
 
 }
@@ -385,10 +569,17 @@ class RiskMatrix {
     rows: ["Low", "Medium", "High"],
     cols: ["Low", "Medium", "High"],
     containerId: "risk-matrix",
-    colors: ["#d4edda", "#ffeeba", "#f8d7da"],
+    // colors: ["#d4edda", "#ffeeba", "#f8d7da"],
+    colors: [
+      ["#d4edda", "#ffeeba", "#ffeeba"],
+      ["#ffeeba", "#ffeeba", "#f8d7da"],
+      ["#ffeeba", "#f8d7da", "#f8d7da"]
+    ],
     cellWidth: 100,
     cellHeight: 50,
     title: "Risk Matrix",
+    rowName: "Probability",
+    colName: "Impact"
   };
 
   constructor(data, options = RiskMatrix.defaultOptions) {
@@ -399,6 +590,22 @@ class RiskMatrix {
     if (!this.container) {
       throw new Error(`Container with ID "${this.options.containerId}" not found.`);
     }
+  }
+
+  titleStyling(titleElement, vertical = false){
+    titleElement.style.display = "flex";
+    titleElement.style.justifyContent = "center";
+    titleElement.style.alignItems = "center";
+    titleElement.style.fontSize = "xx-small";
+    titleElement.style.fontWeight = "bold";
+    titleElement.style.padding = "5px";
+    titleElement.style.whiteSpace = "nowrap";
+    if(vertical) titleElement.style.width = `${this.options.cellHeight / 2}px`;
+    else titleElement.style.height = `${this.options.cellHeight / 2}px`;
+  }
+
+  cellBackgroundColor(rowIndex, colIndex){
+    return Array.isArray(this.options.colors[rowIndex])? this.options.colors[rowIndex][colIndex]: this.options.colors[rowIndex];
   }
 
   createMatrix() {
@@ -414,17 +621,31 @@ class RiskMatrix {
     // Cria o grid principal
     const grid = document.createElement("div");
     grid.style.display = "inline-grid";
-    grid.style.gridTemplateColumns = `repeat(${this.options.cols.length + 1}, ${this.options.cellWidth}px)`;
-    grid.style.gridTemplateRows = `repeat(${this.options.rows.length + 1}, ${this.options.cellHeight}px)`;
+    // grid.style.gridTemplateColumns = `repeat(${this.options.cols.length + 2}, ${this.options.cellWidth}px)`;
+    // grid.style.gridTemplateRows = `repeat(${this.options.rows.length + 2}, ${this.options.cellHeight}px)`;
+    grid.style.gridTemplateColumns = `${this.options.cols.length + 2}`;
+    grid.style.gridTemplateRows = `${this.options.rows.length + 2}`;
     grid.style.color = "#333";
 
     // Adiciona cabeçalhos
+    const colTitleCell = document.createElement("div");
+    colTitleCell.innerHTML = this.options.colName;
+    colTitleCell.style.gridColumnStart = "2"
+    colTitleCell.style.gridColumnEnd = `${this.options.cols.length + 3}`
+    colTitleCell.style.color = "#fff";
+    this.titleStyling(colTitleCell);
+    grid.appendChild(colTitleCell);
+
+    
     const emptyCell = document.createElement("div"); // Célula vazia no canto superior esquerdo
     grid.appendChild(emptyCell);
+
 
     this.options.cols.forEach((col) => {
       const header = document.createElement("div");
       header.textContent = col;
+      header.style.width = `${this.options.cellWidth}px`;
+      header.style.height = `${this.options.cellHeight}px`;
       header.style.textAlign = "center";
       header.style.fontWeight = "bold";
       header.style.fontSize = "12px";
@@ -436,11 +657,21 @@ class RiskMatrix {
       grid.appendChild(header);
     });
 
+    const rowTitleCell = document.createElement("div");
+    rowTitleCell.innerHTML = `<span style="transform: rotateZ(-90deg)">${this.options.rowName}</span>`;
+    rowTitleCell.style.gridRowStart = "2"
+    rowTitleCell.style.gridRowEnd = `${this.options.rows.length + 3}`
+    rowTitleCell.style.color = "#fff";
+    this.titleStyling(rowTitleCell, true);
+    grid.appendChild(rowTitleCell);
+    
     // Adiciona linhas e células da matriz
     this.options.rows.forEach((row, rowIndex) => {
       // Adiciona cabeçalho da linha
       const rowHeader = document.createElement("div");
       rowHeader.textContent = row;
+      rowHeader.style.width = `${this.options.cellWidth}px`;
+      rowHeader.style.height = `${this.options.cellHeight}px`;
       rowHeader.style.textAlign = "center";
       rowHeader.style.fontWeight = "bold";
       rowHeader.style.fontSize = "12px";
@@ -457,7 +688,7 @@ class RiskMatrix {
         cell.style.border = "1px solid #ccc";
         cell.style.width = `${this.options.cellWidth}px`;
         cell.style.height = `${this.options.cellHeight}px`;
-        cell.style.backgroundColor = this.options.colors[rowIndex];
+        cell.style.backgroundColor = this.cellBackgroundColor(rowIndex, colIndex);
         cell.style.display = "flex";
         cell.style.flexWrap = "wrap";
         cell.style.alignItems = "center";
@@ -475,6 +706,7 @@ class RiskMatrix {
             label.style.fontSize = "12px";
             label.style.textAlign = "center";
             label.style.padding = "5px";
+            label.setAttribute('data-index', item.index);
             cell.appendChild(label);
           });
 
@@ -488,5 +720,15 @@ class RiskMatrix {
 
   render() {
     this.createMatrix();
+  }
+
+  highlight(index){
+    const labels = this.container.querySelectorAll('[data-index]');
+    for (let ei = 0; ei < labels.length; ei++) {
+      const element = labels.item(ei);
+      const eIndex = element.getAttribute('data-index');
+      if(eIndex == index || index === -1) element.style.display = 'initial';
+      else element.style.display = 'none';
+    }
   }
 }

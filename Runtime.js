@@ -6,53 +6,107 @@
 */
 
 (function(){
-  const rows = ["Baixo", "Médio", "Alto"];
-  const cols = ["Baixo", "Médio", "Alto"];
+  const rows = ["Alta", "Média", "Baixa"]; ///probability
+  const cols = ["Baixo", "Médio", "Alto"]; ///impact
   const rowThresholds = [33, 66, 100];
   const colThresholds = [3, 10, 15]; 
 
   const mapToMatrix = (row, col)=>{
     const rowIndex = rowThresholds.findIndex(threshold => row <= threshold);
     const colIndex = colThresholds.findIndex(threshold => col <= threshold);
-    return { row: rows[rowIndex], col: cols[colIndex] };
+    return { row: rows[2-rowIndex], col: cols[colIndex] };
   }
 
   // Número de clusters (por exemplo, baixo, médio, alto risco)
   const k = 3;
 
-  const fakeData = new FakeData(50, (x)=>{
-    const probability = Commom.randomWithK([5, 15, 34, 55, 50, 75, 80, 90]);
-    const impact = Commom.randomWithK([0.5,  5, 6, 7, 8, 9, 14]);
+  const fakeData = new FakeData(100, (x)=>{
+    // const probability = Commom.randomWithK([3, 33, 66, 100]);
+    // const impact = Commom.randomWithK([1, 3, 10, 15]);
+    // const probability = Commom.random(2, 100);
+    // const impact = Commom.random(1, 15);
+    const deviation = 0.001;
+    const index = Commom.random(0, 3, true);
+    const probability = Commom.random(...[
+      [3, 50],
+      [34, 66],
+      [50, 95]
+    ][index]) * (1 + Commom.random(0, deviation));
+    const impact = Commom.random(...[
+      [1, 2],
+      [6,9],
+      [11, 14]
+    ][index]) * (1 + Commom.random(0, deviation));
     const risk = (probability * impact) / (15 * 100)
-    return [ probability, impact, risk  / k];
+    return [ impact, probability, risk  / k, 0];
   })
-  const data = fakeData.map(x=>x.slice(0,2));
+
+  const orderData = fakeData.sort((a,b)=>a[3] - b[3])
+  // console.log(JSON.stringify(orderData))
+
+  // const data = realData.map(x=>x.slice(0,2));
+
+  const predata = orderData.map(x=>x.slice(0,2));
+
 
   const execute = ()=>{
     console.log("Executar o K-Means");
-    const result = new KMeans(data, k);
+    const minValues = [0, 0];
+    const maxValues = [15, 100]
   
-    const chart = new ClusterChart("riskCanvas", data, result.clusters, result.centroids, {
-      x: { name: "Probabilidade (%)", min: 0, max: 100, ticks: 5 },
-      y: { name: "Impacto (Milhões)", min: 0, max: 15, ticks: 5 },
-      grid: true,
-      //colors: ["#25cf4e", "#edbc26", "#e62e3f"]
-    });
+    let data = KMeans.normalizeData( predata, minValues, maxValues);
+
+    const result = new KMeans(data, k, 1000);
+
+    data = KMeans.unnormalizeData(data, minValues, maxValues);
+    result.centroids = KMeans.unnormalizeData(result.centroids, minValues, maxValues);
+  
+    const chart = new ClusterChart(
+      "riskCanvas",
+      data,
+      result.clusters,
+      result.centroids,
+      {
+        width: 500,
+        height: 350,
+        y: { name: "Probabilidade (%)", min: 0, max: 100, ticks: 5 },
+        x: { name: "Impacto (Milhões $)", min: 0, max: 15, ticks: 5 },
+        grid: true,
+        // colors: ["#29a346", "#f0c030", "#d62d3c"]
+      }
+    )
     chart.render();
 
     const matrixData = data.map((point, index) => {
       const cluster = result.clusters[index];
-      const { row, col } = mapToMatrix(point[0], point[1]);
-      return { row, col, label: `Risco ${index + 1} (Cluster ${cluster+1})` };
+      const { row, col } = mapToMatrix(point[1], point[0]);
+      return { row, col, label: `Risco ${index + 1} (Cluster ${cluster+1})`, index };
     });
+
+    // console.log(matrixData);
   
     const riskMatrix = new RiskMatrix(matrixData, {
       title: "Matriz de Risco",
       rows,
       cols,
-      colors: ["#d4edda", "#ffeeba", "#f8d7da"],
-      cellWidth: 100,
-      cellHeight: 50,
+      colors: [
+        ["#ffeeba", "#f8d7da", "#f8d7da"],
+        ["#d4edda", "#ffeeba", "#f8d7da"],
+        ["#d4edda", "#d4edda", "#ffeeba"]
+      ],
+      cellWidth: 100*1.2,
+      cellHeight: 50*1.2,
+      rowName: "Probabilidade (%)",
+      colName: "Impacto (Milhões $)"
+    });
+
+    
+    chart.on('pointselect', (e)=>{
+      riskMatrix.highlight(e.pointIndex);
+      console.log(data[e.pointIndex-1])
+    });
+    chart.on('pointunselect', (e)=>{
+      riskMatrix.highlight(-1);
     });
   
     riskMatrix.render();
@@ -75,7 +129,7 @@
     const probability = parseFloat(probabilityInput.value);
     const impact = parseFloat(impactInput.value);
     const risk = (probability * impact) / (15 * 100);
-    data.push([ probability, impact ]);
+    predata.push([ impact, probability ]);
     execute();
   })
 
